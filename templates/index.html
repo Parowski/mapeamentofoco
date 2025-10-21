@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Mapeamento FOCO</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-slate-50 text-slate-800">
+    <div id="toast" class="fixed top-4 right-4 space-y-2 z-50"></div>
+    <header class="border-b bg-white">
+      <div class="max-w-6xl mx-auto p-4 flex items-center justify-between">
+        <h1 class="text-xl font-semibold">Mapeamento FOCO</h1>
+        <div class="flex items-center gap-3">
+          <div class="text-sm text-slate-600">
+            <span>API v{{ api_version }}</span>
+            <span class="mx-2">•</span>
+            <span>{{ base_url }}</span>
+          </div>
+          <a href="{{ docs_url }}" target="_blank" rel="noopener" class="px-3 py-2 rounded bg-slate-200 hover:bg-slate-300">Documentação</a>
+          <button id="btnHelp" class="px-3 py-2 rounded bg-slate-200 hover:bg-slate-300">Ajuda</button>
+
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto p-4 space-y-6">
+
+      <section id="configPanel" class="bg-white shadow-sm rounded border p-4 hidden">
+        <h2 class="font-medium">Configurações FOCO</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+           <input id="cfg_base_url" class="border rounded p-2" placeholder="FOCO_BASE_URL" />
+           <input id="cfg_login_url" class="border rounded p-2" placeholder="FOCO_LOGIN_URL" />
+           <input id="cfg_api_version" class="border rounded p-2" placeholder="FOCO_API_VERSION" />
+           <select id="cfg_grant_type" class="border rounded p-2">
+             <option value="password">password</option>
+             <option value="client_credentials">client_credentials</option>
+           </select>
+           <input id="cfg_client_id" class="border rounded p-2" placeholder="FOCO_CLIENT_ID" />
+           <input id="cfg_client_secret" class="border rounded p-2" placeholder="FOCO_CLIENT_SECRET" />
+           <input id="cfg_username" class="border rounded p-2" placeholder="FOCO_USERNAME" />
+           <input id="cfg_password" type="password" class="border rounded p-2" placeholder="FOCO_PASSWORD" />
+           <input id="cfg_security_token" class="border rounded p-2" placeholder="FOCO_SECURITY_TOKEN" />
+         </div>
+        <div class="mt-3">
+          <button id="btnSaveConfig" class="px-3 py-2 rounded bg-emerald-600 text-white hover:bg-emerald-700">Salvar Configurações</button>
+        </div>
+      </section>
+
+      <!-- Painel de Ajuda -->
+      <section id="helpPanel" class="bg-white shadow-sm rounded border p-4 hidden">
+        <h2 class="font-medium">Ajuda rápida • SAS → FOCO</h2>
+        <div class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-700">
+          <div>
+            <h3 class="font-semibold text-slate-800">Como era no SAS</h3>
+            <ul class="list-disc ml-5 mt-1 space-y-1">
+              <li>Autenticação via credenciais locais/ODBC/Macros.</li>
+              <li>Consultas com PROC SQL e tabelas SAS.</li>
+              <li>Jobs de carga com scripts e tabelas intermediárias.</li>
+            </ul>
+          </div>
+          <div>
+            <h3 class="font-semibold text-slate-800">Como ficou no FOCO</h3>
+            <ul class="list-disc ml-5 mt-1 space-y-1">
+              <li>Autenticação OAuth 2.0 (client_credentials) via backend (.env).</li>
+              <li>Consultas com SOQL em <em>resources</em> de API REST.</li>
+              <li>Cargas em massa com Bulk API v2 (CSV).</li>
+            </ul>
+          </div>
+        </div>
+        <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div class="bg-slate-50 rounded p-3 border">
+            <h4 class="font-semibold text-slate-800">Primeiros passos</h4>
+            <ol class="list-decimal ml-5 mt-1 space-y-1">
+              <li>A lista de sObjects carrega automaticamente.</li>
+              <li>Pesquise um objeto e clique para ver o Describe.</li>
+              <li>Monte uma SOQL e execute em “Query (SOQL)”.</li>
+            </ol>
+          </div>
+          <div class="bg-slate-50 rounded p-3 border">
+            <h4 class="font-semibold text-slate-800">SAS → SOQL</h4>
+            <p class="mt-1">SAS PROC SQL ≈ SELECT SOQL. Use <code>WHERE</code>, <code>ORDER BY</code>, <code>LIMIT</code>.</p>
+            <pre class="mt-2 bg-white border rounded p-2 text-xs whitespace-pre-wrap break-words overflow-x-auto">SELECT Id, Name FROM Account WHERE CreatedDate &gt; LAST_N_DAYS:30 LIMIT 10</pre>
+          </div>
+          <div class="bg-slate-50 rounded p-3 border">
+            <h4 class="font-semibold text-slate-800">Bulk (CSV)</h4>
+            <p class="mt-1">Crie o Job, envie o CSV e feche o Job. Depois consulte o status.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- sObjects + Describe -->
+      <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-white shadow-sm rounded border p-4">
+          <div class="flex items-center justify-between">
+            <h2 class="font-medium">sObjects</h2>
+
+          </div>
+          <p class="mt-2 text-xs text-slate-500">Clique em um objeto para ver os campos (Describe).</p>
+          <input id="filterInput" type="text" placeholder="Filtrar por nome/label do objeto" class="mt-3 w-full border rounded p-2" />
+          <ul id="objectsList" class="mt-3 h-80 overflow-y-auto border rounded p-2 text-sm"></ul>
+        </div>
+        <div class="bg-white shadow-sm rounded border p-4">
+          <div class="flex items-center justify-between">
+            <h2 class="font-medium">Describe (mapeamento/parametrização)</h2>
+            <div class="space-x-2">
+              <button id="btnCopyDescribe" class="px-3 py-1 rounded border">Copiar JSON</button>
+            </div>
+          </div>
+          <p class="mt-2 text-xs text-slate-500">Dica: use o Describe para mapear campos, tipos e picklists.</p>
+          <pre id="describeJson" class="mt-3 h-80 overflow-y-auto bg-slate-100 rounded p-3 text-xs"></pre>
+        </div>
+      </section>
+
+      <!-- Query + Operações -->
+      <section class="bg-white shadow-sm rounded border p-4">
+        <div class="flex items-center justify-between">
+          <h2 class="font-medium">Query (SOQL)</h2>
+          <div class="space-x-2">
+            <a href="{{ docs_url }}" target="_blank" rel="noopener" class="px-3 py-1 rounded border">Docs</a>
+            <button id="btnCopyQuery" class="px-3 py-1 rounded border">Copiar JSON</button>
+          </div>
+        </div>
+        <div class="mt-3 flex gap-2">
+          <input id="queryInput" type="text" class="flex-1 border rounded p-2" placeholder="Ex.: SELECT Id, Name FROM Account LIMIT 2" />
+          <button id="btnRunQuery" class="px-3 py-2 rounded bg-emerald-600 text-white hover:bg-emerald-700">Executar</button>
+        </div>
+        <p class="mt-2 text-xs text-slate-500">SAS → FOCO: PROC SQL vira SOQL. Use WHERE, ORDER BY, LIMIT.</p>
+        <pre id="queryResult" class="mt-3 h-80 overflow-y-auto bg-slate-100 rounded p-3 text-xs"></pre>
+        
+        <!-- Operações CRUD e Composite -->
+        <div class="mt-6 p-4 border rounded bg-gray-50">
+          <div class="flex items-center gap-2 mb-3">
+            <button id="btnOps" class="px-3 py-2 bg-indigo-600 text-white rounded">Operações</button>
+            <span class="text-sm text-gray-600">Create / Update / Upsert / Composite</span>
+            <button id="btnGeneratePayloads" class="px-3 py-2 border rounded">Gerar payloads</button>
+          </div>
+          <div id="opsPanel" class="hidden">
+            <!-- Picklists/Dependências UI -->
+            <div class="mb-4">
+              <h3 class="font-semibold text-gray-800 mb-2">Picklists e dependências</h3>
+              <div class="flex flex-wrap items-center gap-3 mb-2">
+                <label class="inline-flex items-center gap-2 text-sm">
+                  <input type="checkbox" id="picklistAutoMap" class="accent-indigo-600" checked>
+                  Auto-mapear labels → values
+                </label>
+                <label class="inline-flex items-center gap-2 text-sm">
+                  <input type="checkbox" id="picklistActiveOnly" class="accent-indigo-600" checked>
+                  Somente valores ativos
+                </label>
+                <button id="btnViewPicklists" class="px-3 py-1 rounded border">Ver picklists do objeto</button>
+              </div>
+              <pre id="picklistHelp" class="border rounded p-2 bg-white text-xs max-h-56 overflow-auto hidden"></pre>
+            </div>
+            <!-- Create -->
+            <div class="mb-4">
+              <h3 class="font-semibold text-gray-800 mb-2">Create</h3>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
+                <input id="opCreateObject" type="text" class="border rounded p-2" placeholder="Objeto ex: Evento__c" />
+                <textarea id="opCreatePayload" class="border rounded p-2 h-24" placeholder='{"Nome__c":"Feira 2025","Codigo__c":"EVT-000987","Ativo__c":true}'></textarea>
+              </div>
+              <p id="errCreatePayload" class="text-sm text-red-600 hidden">JSON inválido</p>
+              <button id="btnCreate" class="px-3 py-2 bg-green-600 text-white rounded">Create</button>
+            </div>
+            
+            <!-- Update -->
+            <div class="mb-4">
+              <h3 class="font-semibold text-gray-800 mb-2">Update</h3>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+                <input id="opUpdateObject" type="text" class="border rounded p-2" placeholder="Objeto ex: Evento__c" />
+                <input id="opUpdateId" type="text" class="border rounded p-2" placeholder="Record Id ex: a0A5g00001ABCDeEAL" />
+                <textarea id="opUpdatePayload" class="border rounded p-2 h-24 md:col-span-3" placeholder='{"CargaHoraria__c":10}'></textarea>
+              </div>
+              <p id="errUpdatePayload" class="text-sm text-red-600 hidden">JSON inválido</p>
+              <button id="btnUpdate" class="px-3 py-2 bg-blue-600 text-white rounded">Update</button>
+            </div>
+            
+            <!-- Upsert -->
+            <div class="mb-4">
+              <h3 class="font-semibold text-gray-800 mb-2">Upsert</h3>
+              <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mb-2">
+                <input id="opUpsertObject" type="text" class="border rounded p-2" placeholder="Objeto ex: Evento__c" />
+                <input id="opUpsertExternalField" type="text" class="border rounded p-2" placeholder="External Id ex: Codigo__c" />
+                <input id="opUpsertExternalValue" type="text" class="border rounded p-2" placeholder="Valor ex: EVT-000987" />
+                <textarea id="opUpsertPayload" class="border rounded p-2 h-24 md:col-span-4" placeholder='{"Nome__c":"Feira 2025 (rev.)","Ativo__c":true}'></textarea>
+              </div>
+              <p id="errUpsertPayload" class="text-sm text-red-600 hidden">JSON inválido</p>
+              <button id="btnUpsert" class="px-3 py-2 bg-purple-600 text-white rounded">Upsert</button>
+            </div>
+            
+            <!-- Composite SObjects -->
+            <div class="mb-4">
+              <h3 class="font-semibold text-gray-800 mb-2">Composite SObjects</h3>
+              <textarea id="opCompositeSObjects" class="border rounded p-2 h-32 w-full" placeholder='{"allOrNone":false,"records":[{"attributes":{"type":"Evento__c"},"Codigo__c":"EVT-001","Nome__c":"Workshop A"}]}'></textarea>
+              <p id="errCompositeSObjects" class="text-sm text-red-600 hidden">JSON inválido</p>
+              <div class="mt-2">
+                <button id="btnCompositeSObjects" class="px-3 py-2 bg-orange-600 text-white rounded">Enviar Composite SObjects</button>
+              </div>
+            </div>
+            
+            <!-- Composite -->
+            <div class="mb-4">
+              <h3 class="font-semibold text-gray-800 mb-2">Composite</h3>
+              <textarea id="opComposite" class="border rounded p-2 h-32 w-full" placeholder='{"allOrNone":false,"compositeRequest":[{"method":"POST","url":"/services/data/v61.0/sobjects/Evento__c","referenceId":"novoEvento","body":{"Nome__c":"Capacitação X","Codigo__c":"EVT-009"}}]}'></textarea>
+              <p id="errComposite" class="text-sm text-red-600 hidden">JSON inválido</p>
+              <div class="mt-2">
+                <button id="btnComposite" class="px-3 py-2 bg-teal-600 text-white rounded">Enviar Composite</button>
+              </div>
+            </div>
+            
+            <!-- Output -->
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <h3 class="font-semibold text-gray-800">Resposta</h3>
+                <button id="btnCopyOps" class="px-3 py-1 rounded border">Copiar resposta</button>
+              </div>
+              <pre id="opsOutput" class="border rounded p-3 bg-white text-sm overflow-auto max-h-72"></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Bulk API v2 -->
+      <section class="bg-white shadow-sm rounded border p-4">
+        <div class="flex items-center justify-between">
+          <h2 class="font-medium">Bulk API v2 (Ingest)</h2>
+          <div class="space-x-2">
+            <a href="{{ docs_url }}" target="_blank" rel="noopener" class="px-3 py-1 rounded border">Docs</a>
+            <button id="btnCopyBulk" class="px-3 py-1 rounded border">Copiar</button>
+          </div>
+        </div>
+        <div class="mt-3 grid grid-cols-1 md:grid-cols-4 gap-2">
+          <input id="bulkObject" class="border rounded p-2" placeholder="Objeto ex: Account ou Evento__c" />
+          <select id="bulkOperation" class="border rounded p-2">
+            <option value="insert">insert</option>
+            <option value="update">update</option>
+            <option value="upsert">upsert</option>
+            <option value="delete">delete</option>
+          </select>
+          <input id="bulkExternalId" class="border rounded p-2" placeholder="External Id (para upsert)" />
+          <select id="bulkLineEnding" class="border rounded p-2">
+            <option value="LF" selected>LF</option>
+            <option value="CRLF">CRLF</option>
+          </select>
+        </div>
+        <div class="mt-2">
+          <button id="btnBulkCreateJob" class="px-3 py-2 bg-indigo-600 text-white rounded">Criar Job</button>
+        </div>
+
+        <div class="mt-4">
+          <label class="block text-sm text-slate-700 mb-1">Job Id</label>
+          <input id="bulkJobId" class="border rounded p-2 w-full" placeholder="Job Id ex: 750XXXXXXXXXXXX" />
+        </div>
+
+        <div class="mt-4">
+          <label class="block text-sm text-slate-700 mb-1">CSV</label>
+          <textarea id="bulkCsv" class="border rounded p-2 h-32 w-full" placeholder="Name,Phone&#10;Empresa Exemplo,551199999999"></textarea>
+          <p class="mt-2 text-xs text-slate-500">Dica: a primeira linha é o cabeçalho. Separe colunas por vírgula. Use LF/CRLF conforme necessidade.</p>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <button id="btnBulkUpload" class="px-3 py-2 bg-emerald-600 text-white rounded">Enviar CSV</button>
+            <button id="btnBulkClose" class="px-3 py-2 bg-slate-700 text-white rounded">Fechar Job</button>
+            <button id="btnBulkStatus" class="px-3 py-2 bg-blue-600 text-white rounded">Status</button>
+            <button id="btnBulkSuccess" class="px-3 py-2 bg-teal-600 text-white rounded">Resultados OK</button>
+            <button id="btnBulkFailed" class="px-3 py-2 bg-red-600 text-white rounded">Resultados Erro</button>
+            <button id="btnBulkUnprocessed" class="px-3 py-2 bg-amber-500 text-white rounded">Não processados</button>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <h3 class="font-semibold text-gray-800 mb-2">Resposta</h3>
+          <pre id="bulkOutput" class="border rounded p-3 bg-white text-sm overflow-auto max-h-72"></pre>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
